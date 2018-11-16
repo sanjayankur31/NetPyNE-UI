@@ -30,13 +30,13 @@ from shutil import copyfile
 from jupyter_geppetto import jupyter_geppetto, synchronization, utils
 import imp
 from contextlib import redirect_stdout, redirect_stderr
-
+from .nsg import Client
 
 class NetPyNEGeppetto():
 
     def __init__(self):
         self.model_interpreter = NetPyNEModelInterpreter()
-
+        self.client = None
         self.netParams = specs.NetParams()
         self.simConfig = specs.SimConfig()
         synchronization.startSynchronization(self.__dict__)
@@ -486,7 +486,26 @@ class NetPyNEGeppetto():
         
         except:
             return utils.getJSONError("Error while importing the NetPyNE model", sys.exc_info())
+    
+    def test(self, kwargs):
+        try:
+            if getattr(self, "client") and getattr(self.client, 'appID') == kwargs['appID']:
+                return utils.getJSONReply()
+            else:
+                self.client = Client(**kwargs)
             
+            return self.client.listJobs()
+        except:
+            return utils.getJSONError("Error while importing the NetPyNE model", sys.exc_info())
+        
+    def submit_job(self, args):
+        self.exportHLS({"filename": 'init.py'})
+
+        self.client.submitJob(vParams=args["vParams"], 
+                            metadata=args["inputParams"],
+                            inputParams=args["inputParams"], 
+        )
+
 logging.info("Initialising NetPyNE UI")
 netpyne_geppetto = NetPyNEGeppetto()
 logging.info("NetPyNE UI initialised")
