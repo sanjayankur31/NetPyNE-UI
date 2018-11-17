@@ -10,7 +10,7 @@ import time
 import shutil
 import traceback
 import requests
-import xml.etree.ElementTree as ET
+from xml.etree.ElementTree import fromstring, ElementTree
 from jupyter_geppetto import utils
 # Flush stdout for debugging
 sys.stdout.flush()
@@ -38,6 +38,25 @@ class Client(object):
         self.headers = {'cipres-appkey': self.appID }
         self.endUsername = self.username
 
+
+    def login(self): 
+        r = self.__doGet__(url=self.baseUrl + "/job/" + self.endUsername + "/?expand=true")
+        xml = ElementTree(fromstring(r.text.encode('utf-8')))
+        root_tag = xml.getroot().tag
+
+        if root_tag != "error":
+            return { "message": "logging successful", "displayMessage": "", "success": True }
+        else:
+            if xml.find("message") is not None:
+                message = xml.find("message").text
+            else: 
+                message = "error"
+            if xml.find("displayMessage") is not None:
+                displayMessage = xml.find("displayMessage").text
+            else: 
+                displayMessage = ""
+
+            return {"message": message, "displayMessage": displayMessage, "success": False}        
 
     def listJobs(self):
         """ returns list of JobStatus objects """
@@ -83,7 +102,7 @@ class Client(object):
                 print("Response Content = %s" % (response.text))
 
             if response.status_code == 200:
-                return JobStatus(self, xml=ET.fromstring(response.text.encode('utf-8')))
+                return JobStatus(self, xml=ElementTree(fromstring(response.text.encode('utf-8'))))
             else:
                 self.__raiseException__(response)
         finally:
@@ -107,8 +126,8 @@ class Client(object):
         fieldErrors = {}
         if response.text:
             try:
-                element = ET.fromstring(response.text.encode('utf8')) 
-                if element.tag == "error":
+                element = ElementTree(fromstring(response.text.encode('utf8')))
+                if element.getroot().tag == "error":
                     displayMessage = element.find("displayMessage").text
                     cipresCode = int(element.find("code").text)
                     if (cipresCode == 5):
@@ -151,7 +170,7 @@ class Client(object):
     def __parseJobList__(self, text):
         """ Converts xml job listing to a list of JobStatus object """
         jobList = []
-        et = ET.fromstring(text.encode('utf-8'))
+        et = ElementTree(fromstring(text.encode('utf-8')))
         for xmlJobStatus in et.find("jobs"):
             jobList.append(JobStatus(client=self, xml=xmlJobStatus))
         return jobList
@@ -206,8 +225,8 @@ class JobStatus(object):
         # self.messages = [ m.find("text").text for elem in xml.find("messages") ] 
         if xml.find("messages") is not None:
             for m in xml.find("messages"):
-                self.messages.append("%s: %s" % (m.find("timestamp").text, m.find("text").text))
-
+                self.messages.append({"timestamp": m.find("timestamp").text, "text": m.find("text").text.replace('"','').replace("'",'').replace(":",'').replace("{",'').replace("}",'').replace("(",'').replace(")",'').replace("[",'').replace("]",'')})
+                
     def show(self, messages=False):
         """ A debugging method to dump some of the content of this object to stdout """
 
@@ -231,7 +250,7 @@ class JobStatus(object):
 
     def update(self):
         r = self.client.__doGet__(url=self.jobUrl + "/?expand=true")
-        self.__parseJobStatus__(ET.fromstring(r.text.encode('utf-8')))
+        self.__parseJobStatus__(ElementTree(fromstring(r.text.encode('utf-8'))))
 
     def delete(self):
         r = self.client.__doDelete__(url=self.jobUrl)
@@ -253,7 +272,7 @@ class JobStatus(object):
             url = self.workingDirUrl
         r = self.client.__doGet__(url=url)
         resultFiles = {}
-        et = ET.fromstring(r.text.encode('utf-8'))
+        et = ElementTree(fromstring(r.text.encode('utf-8')))
         for child in et.find("jobfiles"):
             resultFiles[child.find("filename").text] = ResultFile(self.client, child)
         return resultFiles

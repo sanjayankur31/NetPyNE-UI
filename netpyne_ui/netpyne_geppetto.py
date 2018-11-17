@@ -478,34 +478,70 @@ class NetPyNEGeppetto():
                         script.write(convert2bool(json.dumps(value, indent=4))+'\n')
                 
                 script.write(header('create simulate analyze  network'))
-                script.write('# sim.createSimulateAnalyze(netParams=netParams, simConfig=simConfig)\n')
+                script.write('sim.createSimulateAnalyze(netParams=netParams, simConfig=simConfig)\n')
                 
                 script.write(header('end script', spacer='='))
             
             return utils.getJSONReply()
         
         except:
-            return utils.getJSONError("Error while importing the NetPyNE model", sys.exc_info())
+            return utils.getJSONError("Error while creating script", sys.exc_info())
     
-    def test(self, kwargs):
-        try:
-            if getattr(self, "client") and getattr(self.client, 'appID') == kwargs['appID']:
-                return utils.getJSONReply()
-            else:
+    def nsg_login(self, kwargs):
+        with redirect_stdout(sys.__stdout__):
+            try:
                 self.client = Client(**kwargs)
-            
-            return self.client.listJobs()
-        except:
-            return utils.getJSONError("Error while importing the NetPyNE model", sys.exc_info())
+                login = self.client.login()
+                if not login["success"]: self.client = None
+                
+                return login
+            except:
+                return utils.getJSONError("Error while importing the NetPyNE model", sys.exc_info())
+    
+    def job_list(self):
+        with redirect_stdout(sys.__stdout__):
+            try:
+                print("HAHAHAH")
+                self.jobs = self.client.listJobs()
+                print("hehehehhe")
+                print(self.jobs)
+                jobs = [{
+                    "commandline": job.commandline,
+                    "jobUrl": job.jobUrl,
+                    "jobHandle": job.jobHandle,
+                    "jobStage": job.jobStage,
+                    "terminalStage": job.terminalStage,
+                    "failed": job.failed,
+                    "resultsUrl": job.resultsUrl,
+                    "workingDirUrl": job.workingDirUrl,
+                    "dateSubmitted": job.dateSubmitted,
+                    "messages": job.messages
+                } for job in self.jobs]
+                print("HIHOOHOHO")
+                print(jobs)
+                return jobs
+            except:
+                return utils.getJSONError("Error while importing the NetPyNE model", sys.exc_info())
         
-    def submit_job(self, args):
-        self.exportHLS({"filename": 'init.py'})
+    def submit_job(self, vParams, metadata):
+        with redirect_stdout(sys.__stdout__):
+            filename = vParams["filename_"]
+            # status = self.exportHLS({"filename": filename})
+            
+            print(vParams)
+            print(metadata)
+            status = {"type": "OK"}
 
-        self.client.submitJob(vParams=args["vParams"], 
-                            metadata=args["inputParams"],
-                            inputParams=args["inputParams"], 
-        )
-
+            filename = {"infile_": "/Users/snakes/Desktop/NetPyNE-UI/init.py.zip"}
+            if "type" in status and status["type"] == "OK":
+                self.jobStatus =  self.client.submitJob(inputParams=filename,
+                                            vParams=vParams, 
+                                            metadata=metadata,
+                )   
+                self.jobStatus.show()
+            
+            return status
+            
 logging.info("Initialising NetPyNE UI")
 netpyne_geppetto = NetPyNEGeppetto()
 logging.info("NetPyNE UI initialised")
