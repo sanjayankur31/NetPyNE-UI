@@ -20,7 +20,7 @@ sys.stdout.flush()
 requests.packages.urllib3.disable_warnings()
 
 # verbose is enabled/disabled via property file.  See main() below.
-verbose=False
+verbose = False
 
 def _prefixProperty(property, prefix):
     if property.startswith(prefix):
@@ -111,41 +111,17 @@ class Client(object):
                 
 
     def __raiseException__(self, response):
-        """ Throws CipresException or ValidationException depending on the type of xml ErrorData 
-        Cipres has returned. """
-
+        
         httpStatus = response.status_code 
         if response.text and len(response.text) > 0:
             rawtext = response.text 
         else:
             rawtext = "No content returned." 
 
-        # Parse displayMessage, code and fieldErrors from response.text
-        displayMessage = None
-        cipresCode = 0 
-        fieldErrors = {}
-        if response.text:
-            try:
-                element = ElementTree(fromstring(response.text.encode('utf8')))
-                if element.getroot().tag == "error":
-                    displayMessage = element.find("displayMessage").text
-                    cipresCode = int(element.find("code").text)
-                    if (cipresCode == 5):
-                        for fieldError in element.findall("paramError"): 
-                            fieldErrors[fieldError.find("param").text] = fieldError.find("error").text
-            except:
-                return utils.getJSONError("We couldn't handle the error", sys.exc_info())
-
-        # Show user the http status code and the <displayMessage> if available, otherwise the raw text.
-        message = f"HTTP Code: {response.status_code}, "
-        message += (rawtext, displayMessage)[displayMessage is not None]
-
         return {
-            "type": httpStatus,
-            "code": cipresCode,
-            "message": message,
-            "fieldErrors": fieldErrors,
-            "rawtext": rawtext
+            "type": "ERROR",
+            "message": httpStatus,
+            "details": rawtext.replace('"','').replace("'",'').replace(":",'').replace("{",'').replace("}",'').replace("(",'').replace(")",'').replace("[",'').replace("]",''),
         }
         
 
@@ -261,6 +237,20 @@ class JobStatus(object):
     def isError(self):
         return self.failed
 
+    def getValues(self):
+        return {
+            "commandline": self.commandline,
+            "jobUrl": self.jobUrl,
+            "jobHandle": self.jobHandle,
+            "jobStage": self.jobStage,
+            "terminalStage": self.terminalStage,
+            "failed": self.failed,
+            "resultsUrl": self.resultsUrl,
+            "workingDirUrl": self.workingDirUrl,
+            "dateSubmitted": self.dateSubmitted,
+            "messages": self.messages
+        }
+
     def listResults(self, final=True):
         """Returns dictionary where key is filename and value is a ResultFile object.   If job isn't 
         finished yet and you want a list of what's in the job's working dir, use "final=False", though
@@ -282,7 +272,9 @@ class JobStatus(object):
         if you want to download files from the working dir before the job has finished.  Once the job is finished
         use final=True to download the final results."""
         resultFiles = self.listResults(final=final)
-        for filename in resultFiles: 
+        print("NSG")
+        for filename in resultFiles:
+            print(filename)
             resultFiles[filename].download(directory)
 
     def waitForCompletion(self, pollInterval=60):
@@ -302,13 +294,11 @@ class ResultFile(object):
         if not directory:
             directory = os.getcwd()
         path = os.path.join(directory, self.name)
-
         if verbose:
             print("downloading from %s to %s" % (self.url, path))
         r = self.client.__doGet__(self.url, stream=True)
         with open(path, 'wb') as outfile:
             shutil.copyfileobj(r.raw, outfile)
-    
     def getName(self):
         return self.name
 

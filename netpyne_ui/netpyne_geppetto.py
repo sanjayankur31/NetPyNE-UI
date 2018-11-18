@@ -13,6 +13,9 @@ import threading
 import time
 import traceback
 import re
+import tempfile
+import zipfile
+import tarfile
 
 from netpyne import specs, sim, analysis
 from netpyne.specs.utils import validateFunction
@@ -358,25 +361,31 @@ class NetPyNEGeppetto():
         return dir_list
 
     def getPlot(self, plotName, LFPflavour):
-        args = self.getPlotSettings(plotName)
-        if LFPflavour:
-            args['plots'] = [LFPflavour]
-        fig = getattr(analysis, plotName)(showFig=False, **args)[0]
-        if fig==-1:
-            return fig
-        elif isinstance(fig, list):
-            # return [ui.getSVG(fig[0])].__str__()
-            return [ui.getSVG(fig[0])]
-        elif isinstance(fig, dict):
-            svgs = []
-            for key, value in fig.items():
-                logging.debug("Found plot for "+ key)
-                svgs.append(ui.getSVG(value))
-            #return svgs.__str__()
-            return svgs
-        else:
-            #return [ui.getSVG(fig)].__str__()
-            return [ui.getSVG(fig)]
+        with redirect_stdout(sys.__stdout__):
+            args = self.getPlotSettings(plotName)
+            if LFPflavour:
+                args['plots'] = [LFPflavour]
+
+            fig = getattr(sim.analysis, plotName)(showFig=False, **args)
+            if isinstance(fig, int):
+                return fig
+            else:
+                fig = fig[0]
+            if fig==-1:
+                return fig
+            elif isinstance(fig, list):
+                # return [ui.getSVG(fig[0])].__str__()
+                return [ui.getSVG(fig[0])]
+            elif isinstance(fig, dict):
+                svgs = []
+                for key, value in fig.items():
+                    logging.debug("Found plot for "+ key)
+                    svgs.append(ui.getSVG(value))
+                #return svgs.__str__()
+                return svgs
+            else:
+                #return [ui.getSVG(fig)].__str__()
+                return [ui.getSVG(fig)]
         
     def getAvailablePops(self):
         return list(self.netParams.popParams.keys())
@@ -478,7 +487,7 @@ class NetPyNEGeppetto():
                         script.write(convert2bool(json.dumps(value, indent=4))+'\n')
                 
                 script.write(header('create simulate analyze  network'))
-                script.write('sim.createSimulateAnalyze(netParams=netParams, simConfig=simConfig)\n')
+                script.write(f'{"#" if not args["run"] else ""}sim.createSimulateAnalyze(netParams=netParams, simConfig=simConfig)\n')
                 
                 script.write(header('end script', spacer='='))
             
@@ -501,47 +510,110 @@ class NetPyNEGeppetto():
     def job_list(self):
         with redirect_stdout(sys.__stdout__):
             try:
-                print("HAHAHAH")
                 self.jobs = self.client.listJobs()
-                print("hehehehhe")
-                print(self.jobs)
-                jobs = [{
-                    "commandline": job.commandline,
-                    "jobUrl": job.jobUrl,
-                    "jobHandle": job.jobHandle,
-                    "jobStage": job.jobStage,
-                    "terminalStage": job.terminalStage,
-                    "failed": job.failed,
-                    "resultsUrl": job.resultsUrl,
-                    "workingDirUrl": job.workingDirUrl,
-                    "dateSubmitted": job.dateSubmitted,
-                    "messages": job.messages
-                } for job in self.jobs]
-                print("HIHOOHOHO")
-                print(jobs)
-                return jobs
+                return [job.getValues() for job in self.jobs]
+
             except:
                 return utils.getJSONError("Error while importing the NetPyNE model", sys.exc_info())
         
     def submit_job(self, vParams, metadata):
         with redirect_stdout(sys.__stdout__):
-            filename = vParams["filename_"]
-            # status = self.exportHLS({"filename": filename})
-            
-            print(vParams)
-            print(metadata)
-            status = {"type": "OK"}
+            try:
+                CWD = os.getcwd()
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    dir_path = os.path.join(temp_dir, "data") # files must be send in a folder container
+                    os.mkdir(dir_path)
+                    os.chdir(dir_path)
+                    export_response = self.exportHLS({"fileName": vParams["filename_"], "run": True})
+                    if export_response["type"] == "OK":
+                        with zipfile.ZipFile("data.zip", 'w', zipfile.ZIP_DEFLATED) as ziph:
+                            for root, _, files in os.walk("../"):
+                                for file in files:
+                                    if file != "data.zip":
+                                        ziph.write(os.path.join(root, file))
+                        
+                        zip_path = {"infile_": os.path.join(os.getcwd(), "data.zip")}
+                        if not hasattr(self, "jobs"): self.jobs = []
+                        self.jobs.append(self.client.submitJob(inputParams=zip_path,
+                                                    vParams=vParams, 
+                                                    metadata=metadata,
+                        ))
+                        if isinstance(self.jobs[-1], dict) and self.jobs[-1]["type"] == "ERROR":
+                            return self.jobs.pop(-1)
+                        else:
+                            self.jobs[-1].show()
+                        return self.jobs[-1].getValues()
+                    else:
+                        return export_response
+                
+                    
+            except:
+                return utils.getJSONError("Error while submiting job", sys.exc_info())
+            finally:
+                os.chdir(CWD)
 
-            filename = {"infile_": "/Users/snakes/Desktop/NetPyNE-UI/init.py.zip"}
-            if "type" in status and status["type"] == "OK":
-                self.jobStatus =  self.client.submitJob(inputParams=filename,
-                                            vParams=vParams, 
-                                            metadata=metadata,
-                )   
-                self.jobStatus.show()
-            
-            return status
-            
+    def delete_job(self, jobUrl):
+        try:
+            for job in self.jobs:
+                if job.jobUrl == jobUrl:
+                    job.delete()
+                    break
+            return utils.getJSONReply()
+        except:
+            return utils.getJSONError("Error while deleting job", sys.exc_info())
+
+    def download_job(self, jobUrl, path):
+        with redirect_stdout(sys.__stdout__):
+            try:
+                for job in self.jobs:
+                    if job.jobUrl == jobUrl:
+                        job.downloadResults(directory=path)
+                        break
+                
+                return utils.getJSONReply()
+            except:
+                return utils.getJSONError("Error while downloading job", sys.exc_info())
+    
+    def load_job(self, jobUrl):
+        with redirect_stdout(sys.__stdout__):
+            try:
+                CWD = os.getcwd()
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    os.chdir(temp_dir)
+
+                    for job in self.jobs:
+                        if job.jobUrl == jobUrl:
+                            job.downloadResults()
+                            break
+                    subprocess.call(["ls"])
+                    
+                    if os.path.exists("output.tar.gz"):
+                        with tarfile.open("output.tar.gz", "r:gz") as tar:
+                            tar.extractall()
+                    else:
+                        return {
+                            'type': 'ERROR', 
+                            'message': 'Error downloading.', 
+                            'details': "We couldn't find an output file."
+                        }
+                    subprocess.call(["ls"])
+                    os.chdir(CWD)
+                    subprocess.call(["ls"], cwd=os.path.join(temp_dir, "data"))
+                    return self.loadModel({
+                        'loadNetParams': True, 
+                        'loadSimCfg': True, 
+                        'loadSimData': True, 
+                        'loadNet': True,
+                        'compileMod': False, 
+                        'modFolder': False,
+                        'jsonModelFolder': os.path.join(temp_dir, "data", "model_output.json"),
+                    })
+            except:
+                return utils.getJSONError("Error while downloading job", sys.exc_info())
+            finally:
+                os.chdir(CWD)
 logging.info("Initialising NetPyNE UI")
 netpyne_geppetto = NetPyNEGeppetto()
 logging.info("NetPyNE UI initialised")
+
+
