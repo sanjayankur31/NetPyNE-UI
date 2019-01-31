@@ -80,7 +80,7 @@ clone(repository=GEPPETTO_CLIENT,
 
 clone(repository=GEPPETTO_NETPYNE,
     folder='geppetto-netpyne',
-    default_branch='development',
+    default_branch='feature-split_dependencies',
 )
 ###############################################################################
 #                              INSTALLING REPOS                               #
