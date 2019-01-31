@@ -73,11 +73,6 @@ clone(repository=ORG_GEPPETTO_FRONTEND_JUPYTER,
     default_branch='development'
 )
 
-clone(repository=GEPPETTO_CLIENT,
-    folder='geppetto-client',
-    default_branch='development',
-)
-
 clone(repository=GEPPETTO_NETPYNE,
     folder='geppetto-netpyne',
     default_branch='feature-split_dependencies',
@@ -120,7 +115,7 @@ subprocess.call(['jupyter', 'nbextension', 'enable',
                 cwd=JUPYTER_EXTENSION_PATH
 )
 subprocess.call(['jupyter', 'serverextension', 'enable', 
-                '--py', '--symlink', '--sys-prefix', 'jupyter_geppetto'],
+                '--py', '--sys-prefix', 'jupyter_geppetto'],
                 cwd=JUPYTER_EXTENSION_PATH
 )
 ###############################################################################
