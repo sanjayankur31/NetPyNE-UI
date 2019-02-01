@@ -70,7 +70,7 @@ clone(repository=NETPYNE,
 
 clone(repository=ORG_GEPPETTO_FRONTEND_JUPYTER,
     folder='org.geppetto.frontend.jupyter',
-    default_branch='development'
+    default_branch='feature-split_dependencies'
 )
 
 clone(repository=GEPPETTO_NETPYNE,
