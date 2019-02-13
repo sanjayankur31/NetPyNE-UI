@@ -12,6 +12,6 @@ RUN git clone -b $netpyneuiBranch https://github.com/MetaCell/NetPyNE-UI &&\
 WORKDIR $HOME
 RUN git clone --depth 1 https://github.com/Neurosim-lab/netpyne_workspace
 WORKDIR $HOME/netpyne_workspace
-RUN ln -sfn $HOME/work/NetPyNE-UI-$netpyneuiBranch/netpyne_ui/tests tests
+RUN ln -sfn $HOME/NetPyNE-UI/netpyne_ui/tests tests
 
 CMD jupyter notebook --debug --NotebookApp.default_url=/geppetto --NotebookApp.token='' --library=netpyne_ui
