@@ -1,4 +1,4 @@
-[![Docker Automated buil](https://img.shields.io/docker/automated/jrottenberg/ffmpeg.svg)](https://hub.docker.com/r/metacell/netpyne-ui/)
+[![Docker Automated buil](https://img.shields.io/docker/automated/jrottenberg/ffmpeg.svg)](https://hub.docker.com/r/metacell/netpyne-ui/) 
 
 <p align="center">
     <img src="https://raw.githubusercontent.com/MetaCell/NetPyNE-UI/updated_documentation/docs/netpyne.png" width="350px"/>
