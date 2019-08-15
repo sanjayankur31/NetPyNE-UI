@@ -34,12 +34,12 @@ class TmpAuthenticateHandler(BaseHandler):
         
         server_name = ''
         redirection = self.get_next_url(user)
-        user.spawners[server_name].environment["NWBFILE"] = ''
+        user.spawners[server_name].environment["NETPYNE_URL"] = ''
 
-        if 'hub/nwbfile=' in self.request.uri:
+        if 'hub/source=' in self.request.uri:
             server_name = str(uuid.uuid4()).split('-').pop()
             redirection = f'/hub/spawn/{user.name}/{server_name}'
-            user.spawners[server_name].environment["NWBFILE"] = self.request.uri.split('=').pop()
+            user.spawners[server_name].environment["NETPYNE_URL"] = self.request.uri.split('=').pop()
         
         self.redirect(redirection)
 
@@ -70,7 +70,7 @@ class TmpAuthenticator(Authenticator):
         }
         return [
             ('/tmplogin.*', TmpAuthenticateHandler, extra_settings),
-            ('/nwbfile=.*', TmpAuthenticateHandler, extra_settings)
+            ('/source=.*', TmpAuthenticateHandler, extra_settings)
         ]
 
     def login_url(self, base_url):
